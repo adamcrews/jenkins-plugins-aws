@@ -10,10 +10,22 @@ variable "domain" {
   default = "pdxlab.tech"
 }
 
-data "archive_file" "lambda" {
+data "archive_file" "plugins" {
   type = "zip"
-  output_path = "${path.module}/lambda.zip"
+  output_path = "${path.module}/.cache/plugins.zip"
   source_file = "${path.module}/src/plugins.js"
+}
+
+data "archive_file" "package" {
+  type = "zip"
+  output_path = "${path.module}/.cache/package.zip"
+  source_file = "${path.module}/src/package.js"
+}
+
+data "archive_file" "dispatcher" {
+  type = "zip"
+  output_path = "${path.module}/.cache/dispatcher.zip"
+  source_file = "${path.module}/src/dispatcher.js"
 }
 
 # Be sure to set AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY in your
@@ -23,23 +35,22 @@ provider "aws" {
 }
 
 # SQS queue is used to post messages about what work to do
+# visibility_timeout is set to 1 second longer than the max lambda run time
 resource "aws_sqs_queue" "jenkins_plugins" {
   name_prefix = "jenkins-plugins"
-  visibility_timeout_seconds = 900
-  tags { 
+  visibility_timeout_seconds = 301
+  tags {
     Owner = "adamc"
     Project = "jenkins_plugins"
   }
 }
 
-  #source_code_hash = "${base64sha256(file(${archive_file.lambda.output_path}/lambda.zip"))}"
-
 resource "aws_lambda_function" "jenkins-plugins" {
-  filename         = "${data.archive_file.lambda.output_path}"
+  filename         = "${data.archive_file.plugins.output_path}"
   function_name    = "jenkins-plugins-get-plugins"
   role             = "${aws_iam_role.jenkins-plugins-role.arn}"
   handler          = "plugins.get_plugins"
-  source_code_hash = "${data.archive_file.lambda.output_sha}"
+  source_code_hash = "${data.archive_file.plugins.output_sha}"
   runtime          = "nodejs8.10"
   timeout          = "300"
 
@@ -47,9 +58,58 @@ resource "aws_lambda_function" "jenkins-plugins" {
     variables = {
       sqsQueue = "${aws_sqs_queue.jenkins_plugins.id}"
       region   = "${var.region}"
+      release  = "1"
     }
   }
-  tags { 
+  tags {
+    Terraform   = "true"
+    Environment = "prod"
+    Owner       = "adamc"
+    Project     = "jenkins_plugins"
+  }
+}
+
+resource "aws_lambda_function" "jenkins-plugins-rpm-package" {
+  filename         = "${data.archive_file.package.output_path}"
+  function_name    = "jenkins-plugins-rpm-package"
+  role             = "${aws_iam_role.jenkins-plugins-role.arn}"
+  handler          = "package.build_rpm"
+  source_code_hash = "${data.archive_file.package.output_sha}"
+  runtime          = "nodejs8.10"
+  timeout          = "300"
+
+  environment {
+    variables = {
+      sqsQueue = "${aws_sqs_queue.jenkins_plugins.id}"
+      region   = "${var.region}"
+      release  = "1"
+    }
+  }
+  tags {
+    Terraform   = "true"
+    Environment = "prod"
+    Owner       = "adamc"
+    Project     = "jenkins_plugins"
+  }
+}
+
+resource "aws_lambda_function" "jenkins-plugins-dispatcher" {
+  filename         = "${data.archive_file.dispatcher.output_path}"
+  function_name    = "jenkins-plugins-dispatcher"
+  role             = "${aws_iam_role.jenkins-plugins-role.arn}"
+  handler          = "dispatcher.handler"
+  source_code_hash = "${data.archive_file.dispatcher.output_sha}"
+  runtime          = "nodejs8.10"
+  timeout          = "300"
+
+  environment {
+    variables = {
+      sqsQueue = "${aws_sqs_queue.jenkins_plugins.id}"
+      region   = "${var.region}"
+      release  = "1"
+    }
+  }
+  tags {
     Terraform   = "true"
     Environment = "prod"
     Owner       = "adamc"
@@ -58,7 +118,7 @@ resource "aws_lambda_function" "jenkins-plugins" {
 }
 
 # Trigger the lambda to run on an interval.
-# We need a cloudwatch event rule, an event target, and 
+# We need a cloudwatch event rule, an event target, and
 # lambda permissions
 resource "aws_cloudwatch_event_rule" "jenkins-plugins" {
   name = "jenkins-plugins-feeder"
