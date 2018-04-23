@@ -3,6 +3,8 @@
 // Load Required libraries
 const https = require('https');
 const AWS   = require('aws-sdk');
+// import the config module
+const config = require('./config');
 
 // Set the region... is this really needed?
 AWS.config.update({region: process.env.region});
@@ -11,15 +13,11 @@ AWS.config.update({region: process.env.region});
 var sqs = new AWS.SQS({apiVersion: '2012-11-05'});
 var s3  = new AWS.S3();
 
-// Read the queue and s3 info from the env
-var sqsQueue = process.env.sqsQueue;
-var s3Bucket = process.env.s3Bucket;
-var release  = process.env.release;
-
 function deleteMessage(receiptHandle, cb) {
   sqs.deleteMessage({
     ReceiptHandle: receiptHandle,
-    QueueUrl: sqsQueue
+    // reference the SQS_QUEUE param on the imported config object
+    QueueUrl: config.SQS_QUEUE
   }, cb);
 }
 
@@ -30,7 +28,7 @@ function work(task, cb) {
   console.log(pName);
 
   let params = {
-    Bucket: s3Bucket,
+    Bucket: config.S3_BUCKET,
     Key: '/rpm/' + pName + '.rpm'
   };
 
