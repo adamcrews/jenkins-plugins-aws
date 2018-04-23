@@ -1,22 +1,24 @@
-'use strict';
+"use strict";
 
 // Load Required libraries
-const AWS = require('aws-sdk');
-const https = require('https');
+const AWS = require("aws-sdk");
+const https = require("https");
+const config = require("./config");
 
 // Set the region... is this really needed?
-AWS.config.update({region: process.env.region});
+AWS.config.update({ region: process.env.region });
 
 // Create the sqs service opbject
-var sqs = new AWS.SQS({apiVersion: '2012-11-05'});
+var sqs = new AWS.SQS({ apiVersion: "2012-11-05" });
 
 // Read the queue url from the env
-var sqsQueue = process.env.sqsQueue;
+// var sqsQueue = process.env.sqsQueue;
 
 //module.exports.get_plugins = (event, context, callback) => {
 module.exports.get_plugins = (event, context) => {
   // Get our json file
-  const url = 'https://updates.jenkins-ci.org/current/update-center.actual.json';
+  const url =
+    "https://updates.jenkins-ci.org/current/update-center.actual.json";
 
   https.get(url, res => {
     let body = "";
@@ -29,22 +31,22 @@ module.exports.get_plugins = (event, context) => {
 
     res.on("end", () => {
       body = JSON.parse(body);
-      plugins = Object.keys(body['plugins']);
-      plugins.forEach((plugin) => {
+      plugins = Object.keys(body["plugins"]);
+      plugins.forEach(plugin => {
         var sqsParams = {
           MessageAttributes: {
-            "plugin": {
+            plugin: {
               DataType: "String",
               StringValue: plugin
             }
           },
-          MessageBody: JSON.stringify(body['plugins'][plugin]),
-          QueueUrl: sqsQueue
-        }
+          MessageBody: JSON.stringify(body["plugins"][plugin]),
+          QueueUrl: config.SQS_QUEUE
+        };
 
         sqs.sendMessage(sqsParams, function(err, data) {
           if (err) {
-            console.log('Error: ', err);
+            console.log("Error: ", err);
           }
         });
       });
