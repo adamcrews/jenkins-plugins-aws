@@ -11,13 +11,13 @@ AWS.config.update({region: process.env.region});
 var sqs = new AWS.SQS({apiVersion: '2012-11-05'});
 
 // Read the queue url from the env
-var sqsQueue = process.env.sqsQueue
+var sqsQueue = process.env.sqsQueue;
 
 //module.exports.get_plugins = (event, context, callback) => {
 module.exports.get_plugins = (event, context) => {
   // Get our json file
   const url = 'https://updates.jenkins-ci.org/current/update-center.actual.json';
-  
+
   https.get(url, res => {
     let body = "";
     let plugins = "";
@@ -32,15 +32,20 @@ module.exports.get_plugins = (event, context) => {
       plugins = Object.keys(body['plugins']);
       plugins.forEach((plugin) => {
         var sqsParams = {
+          MessageAttributes: {
+            "plugin": {
+              DataType: "String",
+              StringValue: plugin
+            }
+          },
           MessageBody: JSON.stringify(body['plugins'][plugin]),
           QueueUrl: sqsQueue
         }
-            
+
         sqs.sendMessage(sqsParams, function(err, data) {
           if (err) {
             console.log('Error: ', err);
           }
-          // console.log(data);
         });
       });
     });
