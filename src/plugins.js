@@ -6,21 +6,15 @@ const https = require("https");
 const config = require("./config");
 
 // Set the region... is this really needed?
-AWS.config.update({ region: process.env.region });
+AWS.config.update({ region: config.REGION });
 
 // Create the sqs service opbject
 var sqs = new AWS.SQS({ apiVersion: "2012-11-05" });
 
-// Read the queue url from the env
-// var sqsQueue = process.env.sqsQueue;
-
 //module.exports.get_plugins = (event, context, callback) => {
-module.exports.get_plugins = (event, context) => {
+exports.handler = (event, context) => {
   // Get our json file
-  const url =
-    "https://updates.jenkins-ci.org/current/update-center.actual.json";
-
-  https.get(url, res => {
+  https.get(config.PLUGIN_URL, res => {
     let body = "";
     let plugins = "";
 
