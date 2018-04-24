@@ -1,0 +1,29 @@
+%define __os_install_post %{nil}
+%define debug_package %{nil}
+Name:           jenkins-plugin-{{name}}
+Summary:        Jenkins Plugin {{title}}
+BuildArch:      noarch
+AutoReqProv:    no
+Version:        {{version_underbar}}
+Release:        {{release}}
+License:        https://jenkins.io/project/governance
+Group:          Jenkins
+URL:            {{{wiki}}}
+Source0:        {{{url}}}
+Provides:       jenkins-plugin({{name}}) = {{version}}
+Requires:       jenkins >= {{requiredCore}}
+{{#dependencies}}
+Requires:       jenkins-plugin({{name}}) >= {{version}}
+{{/dependencies}}
+
+%description
+{{excerpt}}
+%build
+mkdir -p $RPM_BUILD_ROOT/var/lib/jenkins/plugins
+cp $RPM_SOURCE_DIR/{{filename}}* $RPM_BUILD_ROOT/var/lib/jenkins/plugins/{{filename}}.jpi
+touch $RPM_BUILD_ROOT/var/lib/jenkins/plugins/{{filename}}.hpi
+touch $RPM_BUILD_ROOT/var/lib/jenkins/plugins/{{filename}}.jpi.pinned
+%files
+%ghost /var/lib/jenkins/plugins/{{filename}}.hpi
+%attr(644,jenkins,jenkins) /var/lib/jenkins/plugins/{{filename}}.jpi
+%attr(444,jenkins,jenkins) /var/lib/jenkins/plugins/{{filename}}.jpi.pinned

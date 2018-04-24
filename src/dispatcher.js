@@ -6,7 +6,7 @@ const async  = require("async");
 const config = require("./config");
 
 // Set the region... is this really needed?
-AWS.config.update({ region: config.REGION });
+AWS.config.update({ region: process.env.AWS_REGION });
 
 // Create the sqs service opbject
 var sqs = new AWS.SQS({ apiVersion: "2012-11-05" });
