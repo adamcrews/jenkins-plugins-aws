@@ -54,7 +54,7 @@ function mkDirByPathSync(targetDir, {isRelativeToScript = false} = {}) {
 
 function work(task, cb) {
   const mustache = require('mustache');
-  const specdir  = '/tmp';
+  const buildRoot  = '/tmp/rpmbuild';
 
   var message = JSON.parse(task);
   let templ   = fs.readFileSync(process.cwd() + '/rpm_spec.mustache', 'utf8');
@@ -63,29 +63,31 @@ function work(task, cb) {
   message.version_underbar = message.version.replace(/-/g,"_");
   message.filename         = strip_extension(basename(message.url,'/'));
 
-  let buildDirs = [ 'BUILD', 'BUILDROOT', 'RPMS', 'SPECS', 'SRPMS', 'SOURCES' ];
+  let buildDirs = [ 'BUILD', 'BUILDROOT', 'RPMS', 'SPECS', 'SRPMS', 'SOURCES', 'tmp' ];
   for (var d in buildDirs) {
-    mkDirByPathSync(specdir + '/' + buildDirs[d]);
+    mkDirByPathSync(buildRoot + '/' + buildDirs[d]);
   }
 
+  let specFile = buildRoot + '/SPECS/jenkins-plugin-' + message.name + '.spec';
   fs.writeFile(
-    specdir + '/SPECS/jenkins-plugin-' + message.name + '.spec',
+    specFile,
     mustache.render(templ, message),
     function (err) {
       if(err) throw err;
+  });
+
+  let buildCmd = process.cwd() + '/rpmbuild --define \'_tmppath ' + buildRoot + '/tmp\' --define \'_topdir ' + buildRoot + '\' --buildroot ' + buildRoot + ' -ba ' + specFile;
+  exec(buildCmd, (err, stdout, stderr) => {
+    if (err) {
+      // node couldn't execute the command
+      console.log(err);
+      return;
     }
-  );
 
-  exec(process.cwd() + 'rpmbuild', (err, stdout, stderr) => {
-  if (err) {
-    // node couldn't execute the command
-    return;
-  }
-
-  // the *entire* stdout and stderr (buffered)
-  console.log(`stdout: ${stdout}`);
-  console.log(`stderr: ${stderr}`);
-});
+    // the *entire* stdout and stderr (buffered)
+    console.log(`stdout: ${stdout}`);
+    console.log(`stderr: ${stderr}`);
+  });
 
   // let params = {
   //  Bucket: config.S3_BUCKET,
