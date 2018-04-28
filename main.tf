@@ -1,12 +1,15 @@
 # Create the resources to run all the things
-
+variable "pkg_release" {
+  description = "The release/build number of the packages."
+  default = "1"
+}
 variable "region" {
-  description = "The AWS Region to create resources in"
+  description = "The AWS Region to create resources in."
   default = "us-west-2"
 }
 
 variable "domain" {
-  description = "The dns domain name to use"
+  description = "The dns domain name to use."
   default = "pdxlab.tech"
 }
 
@@ -19,7 +22,7 @@ data "archive_file" "lambda" {
 # Be sure to set AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY in your
 # environment.
 provider "aws" {
-  region = "${var.region}"
+   region = "${var.region}"
 }
 
 # SQS queue is used to post messages about what work to do
@@ -47,8 +50,9 @@ resource "aws_lambda_function" "jenkins-plugins-get-plugins" {
   environment {
     variables = {
       sqsQueue = "${aws_sqs_queue.jenkins-plugins.id}"
-      region   = "${var.region}"
-      release  = "1"
+      release  = "${var.pkg_release}"
+      s3Bucket = "${module.rpm_bucket.s3_bucket_id}"
+      snsTopic = "${aws_sns_topic.topic.arn}"
     }
   }
   tags {
@@ -71,8 +75,8 @@ resource "aws_lambda_function" "jenkins-plugins-create-packages" {
   environment {
     variables = {
       sqsQueue = "${aws_sqs_queue.jenkins-plugins.id}"
-      region   = "${var.region}"
-      release  = "1"
+      release  = "${var.pkg_release}"
+      s3Bucket = "${module.rpm_bucket.s3_bucket_id}"
     }
   }
   tags {
@@ -95,8 +99,8 @@ resource "aws_lambda_function" "jenkins-plugins-dispatcher" {
   environment {
     variables = {
       sqsQueue = "${aws_sqs_queue.jenkins-plugins.id}"
-      region   = "${var.region}"
-      release  = "1"
+      release  = "${var.pkg_release}"
+      s3Bucket = "${module.rpm_bucket.s3_bucket_id}"
     }
   }
   tags {
@@ -130,6 +134,46 @@ resource "aws_lambda_permission" "jenkins-plugins-get-plugins" {
   function_name = "${aws_lambda_function.jenkins-plugins-get-plugins.function_name}"
   principal = "events.amazonaws.com"
   source_arn = "${aws_cloudwatch_event_rule.jenkins-plugins-get-plugins.arn}"
+}
+
+resource "aws_cloudwatch_event_rule" "jenkins-plugins-dispatcher" {
+  name = "jenkins-plugins-dispatcher"
+  depends_on = [
+    "aws_lambda_function.jenkins-plugins-dispatcher"
+  ]
+  schedule_expression = "rate(10 minutes)"
+}
+
+resource "aws_cloudwatch_event_target" "jenkins-plugins-dispatcher" {
+  target_id = "jenkins-plugins-dispatcher"
+  rule = "${aws_cloudwatch_event_rule.jenkins-plugins-dispatcher.name}"
+  arn = "${aws_lambda_function.jenkins-plugins-dispatcher.arn}"
+}
+
+resource "aws_lambda_permission" "jenkins-plugins-dispatcher" {
+  statement_id = "AllowExecutionFromCloudWatch"
+  action = "lambda:InvokeFunction"
+  function_name = "${aws_lambda_function.jenkins-plugins-dispatcher.function_name}"
+  principal = "events.amazonaws.com"
+  source_arn = "${aws_cloudwatch_event_rule.jenkins-plugins-dispatcher.arn}"
+}
+
+resource "aws_sns_topic" "topic" {
+  name = "jenkins-plugins"
+}
+
+resource "aws_sns_topic_subscription" "jenkins-plugins-dispatcher" {
+  topic_arn = "${aws_sns_topic.topic.arn}"
+  protocol  = "lambda"
+  endpoint  = "${aws_lambda_function.jenkins-plugins-dispatcher.arn}"
+}
+
+resource "aws_lambda_permission" "with_sns" {
+    statement_id = "AllowExecutionFromSNS"
+    action = "lambda:InvokeFunction"
+    function_name = "${aws_lambda_function.jenkins-plugins-dispatcher.function_name}"
+    principal = "sns.amazonaws.com"
+    source_arn = "${aws_sns_topic.topic.arn}"
 }
 
 module "rpm_bucket" {

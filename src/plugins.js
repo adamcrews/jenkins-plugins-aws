@@ -10,6 +10,7 @@ AWS.config.update({ region: process.env.AWS_REGION });
 
 // Create the sqs service opbject
 var sqs = new AWS.SQS({ apiVersion: "2012-11-05" });
+var sns = new AWS.SNS();
 
 //module.exports.get_plugins = (event, context, callback) => {
 exports.handler = (event, context) => {
@@ -45,5 +46,19 @@ exports.handler = (event, context) => {
         });
       });
     });
+  });
+
+  var params = {
+    TargetArn: config.SNS_TOPIC,
+    Message:'Do the things!!!',
+    Subject: 'Trigger Lambda'
+  };
+
+  sns.publish(params, function(err,data){
+    if (err) {
+      console.log('Error sending message', err);
+    //} else {
+    //  console.log('Sent message:', data.MessageId);
+    }
   });
 };

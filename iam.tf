@@ -61,7 +61,10 @@ resource "aws_iam_role_policy" "jenkins-plugins-lambda-policy" {
     {
       "Effect": "Allow",
       "Action": [
-        "lambda:InvokeFunction"
+        "lambda:InvokeFunction",
+        "logs:CreateLogGroup",
+        "logs:CreateLogStream",
+        "logs:PutLogEvents"
       ],
       "Resource": [
         "${aws_lambda_function.jenkins-plugins-get-plugins.arn}",
@@ -72,4 +75,26 @@ resource "aws_iam_role_policy" "jenkins-plugins-lambda-policy" {
   ]
 }
 EOF
+}
+
+resource "aws_iam_role_policy" "jenkins-plugins-sns-policy" {
+  name = "jenkins-plugins-sns-policy"
+  role = "${aws_iam_role.jenkins-plugins-role.id}"
+
+  policy = <<EOP
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": [
+        "SNS:Publish"
+      ],
+      "Resource": [
+        "${aws_sns_topic.topic.arn}"
+      ]
+    }
+  ]
+}
+EOP
 }
