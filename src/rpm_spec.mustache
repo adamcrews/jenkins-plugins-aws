@@ -23,7 +23,7 @@ Requires:       jenkins-plugin({{name}}) >= {{version}}
 
 %prep
 # Verify the sha1 sum of the downloaded package
-[ "$(cat $RPM_SOURCE_DIR/{{filename}}* | openssl sha1 -binary | base64)" == "{{sha1}}" ]
+[ "$(cat $RPM_SOURCE_DIR/{{filename}}* | openssl sha1 -binary | base64)" == "{{{sha1}}}" ]
 
 %build
 mkdir -p $RPM_BUILD_ROOT/var/lib/jenkins/plugins
