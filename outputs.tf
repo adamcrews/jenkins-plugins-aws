@@ -1,3 +1,3 @@
 output "sqsQueue" {
-  value = "${aws_sqs_queue.jenkins_plugins.id}"
+  value = "${aws_sqs_queue.jenkins-plugins.id}"
 }

@@ -2,3 +2,5 @@ terraform.*
 .terraform/
 *.zip
 .envrc
+.cache/
+node_modules/

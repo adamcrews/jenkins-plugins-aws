@@ -1,24 +1,21 @@
-'use strict';
+"use strict";
 
 // Load Required libraries
-const AWS = require('aws-sdk');
-const https = require('https');
+const AWS = require("aws-sdk");
+const https = require("https");
+const config = require("./config");
 
 // Set the region... is this really needed?
-AWS.config.update({region: process.env.region});
+AWS.config.update({ region: process.env.AWS_REGION });
 
 // Create the sqs service opbject
-var sqs = new AWS.SQS({apiVersion: '2012-11-05'});
-
-// Read the queue url from the env
-var sqsQueue = process.env.sqsQueue
+var sqs = new AWS.SQS({ apiVersion: "2012-11-05" });
+var sns = new AWS.SNS();
 
 //module.exports.get_plugins = (event, context, callback) => {
-module.exports.get_plugins = (event, context) => {
+exports.handler = (event, context) => {
   // Get our json file
-  const url = 'https://updates.jenkins-ci.org/current/update-center.actual.json';
-  
-  https.get(url, res => {
+  https.get(config.PLUGIN_URL, res => {
     let body = "";
     let plugins = "";
 
@@ -29,20 +26,39 @@ module.exports.get_plugins = (event, context) => {
 
     res.on("end", () => {
       body = JSON.parse(body);
-      plugins = Object.keys(body['plugins']);
-      plugins.forEach((plugin) => {
+      plugins = Object.keys(body["plugins"]);
+      plugins.forEach(plugin => {
         var sqsParams = {
-          MessageBody: JSON.stringify(body['plugins'][plugin]),
-          QueueUrl: sqsQueue
-        }
-            
+          MessageAttributes: {
+            plugin: {
+              DataType: "String",
+              StringValue: plugin
+            }
+          },
+          MessageBody: JSON.stringify(body["plugins"][plugin]),
+          QueueUrl: config.SQS_QUEUE
+        };
+
         sqs.sendMessage(sqsParams, function(err, data) {
           if (err) {
-            console.log('Error: ', err);
+            console.log("Error: ", err);
           }
-          // console.log(data);
         });
       });
     });
+  });
+
+  var params = {
+    TargetArn: config.SNS_TOPIC,
+    Message:'Do the things!!!',
+    Subject: 'Trigger Lambda'
+  };
+
+  sns.publish(params, function(err,data){
+    if (err) {
+      console.log('Error sending message', err);
+    //} else {
+    //  console.log('Sent message:', data.MessageId);
+    }
   });
 };
