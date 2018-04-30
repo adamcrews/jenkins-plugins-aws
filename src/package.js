@@ -1,13 +1,14 @@
 'use strict';
 
 // Load Required libraries
-const AWS   = require('aws-sdk');
-const fs    = require('fs-extra');
-const path  = require('path');
+const AWS       = require('aws-sdk');
+const fs        = require('fs-extra');
+const path      = require('path');
 const { exec }  = require('child_process');
 
-// import the config module
+// import this module's configuration
 const config = require('./config');
+const util   = require('./lib');
 
 AWS.config.update({ region: config.AWS_REGION });
 
@@ -15,71 +16,14 @@ AWS.config.update({ region: config.AWS_REGION });
 var sqs = new AWS.SQS({ apiVersion: '2012-11-05' });
 var s3  = new AWS.S3();
 
+const rpmPath = 'rpms/Packages/';
+const srpmPath = 'source/srpms/';
+
 function deleteMessage(receiptHandle, cb) {
   sqs.deleteMessage({
     ReceiptHandle: receiptHandle,
     QueueUrl: config.SQS_QUEUE
   }, cb);
-}
-
-function basename(str, sep) {
-  return str.substr(str.lastIndexOf(sep) + 1);
-}
-
-function strip_extension(str) {
-  return str.substr(0,str.lastIndexOf('.'));
-}
-
-function uploadFile(bucket, fileName, data) {
-  let params = {
-    Bucket: bucket,
-    Key: fileName,
-    Body: data
-  };
-
-  s3.upload(params, function(err, data) {
-    if (err) {
-      console.log(err);
-      throw err;
-    }
-  });
-}
-
-function checkFile(bucket, filename) {
-  return new Promise(function(resolve, reject) {
-    let params = {
-      Bucket: bucket,
-      Key: filename
-    };
-
-    s3.headObject(params, function (err, metadata) {
-      if (err && err.code === 'NotFound') {
-        reject("NotFound");
-      }
-      resolve("Found");
-    });
-  });
-}
-
-function mkDirByPathSync(targetDir, {isRelativeToScript = false} = {}) {
-  const sep     = path.sep;
-  const initDir = path.isAbsolute(targetDir) ? sep : '';
-  const baseDir = isRelativeToScript ? __dirname : '.';
-
-  targetDir.split(sep).reduce((parentDir, childDir) => {
-    const curDir = path.resolve(baseDir, parentDir, childDir);
-    try {
-      fs.mkdirSync(curDir);
-      //console.log(`Directory ${curDir} created!`);
-    } catch (err) {
-      if (err.code !== 'EEXIST') {
-        throw err;
-      }
-      //console.log(`Directory ${curDir} already exists!`);
-    }
-
-    return curDir;
-  }, initDir);
 }
 
 function makeBuildDirs(root, subDirs) {
@@ -89,12 +33,12 @@ function makeBuildDirs(root, subDirs) {
     // previous build.
     fs.removeSync(root);
     for (var d in subDirs) {
-      mkDirByPathSync(root + '/' + subDirs[d]);
+      util.mkDirByPathSync(root + '/' + subDirs[d]);
     }
   });
 }
 
-function buildRpm(cmd, rpmName, srcrpmName) {
+function buildRpm(cmd, rpmName, srpmName) {
   return new Promise(function(resolve, reject) {
     exec(cmd, (err, stdout, stderr) => {
       if (err) {
@@ -105,7 +49,7 @@ function buildRpm(cmd, rpmName, srcrpmName) {
 
       let data = {
         rpm:  fs.readFileSync(config.RPMROOT + '/RPMS/noarch/' + rpmName, 'utf8'),
-        srpm: fs.readFileSync(config.RPMROOT + '/SRPMS/' + srcrpmName, 'utf8')
+        srpm: fs.readFileSync(config.RPMROOT + '/SRPMS/' + srpmName, 'utf8')
       };
 
       resolve(data);
@@ -117,13 +61,13 @@ function work(task, cb) {
   var message = JSON.parse(task);
   message.release          = config.RELEASE;
   message.version_underbar = message.version.replace(/-/g,"_");
-  message.filename         = strip_extension(basename(message.url,'/'));
+  message.filename         = util.strip_extension(util.basename(message.url,'/'));
 
   let rpmName = 'jenkins-plugin-' + message.name + '-' + message.version_underbar + '-' + message.release + '.noarch.rpm';
-  let srcrpmName = 'jenkins-plugin-' + message.name + '-' + message.version_underbar + '-' + message.release + '.src.rpm';
+  let srpmName = 'jenkins-plugin-' + message.name + '-' + message.version_underbar + '-' + message.release + '.src.rpm';
 
   // if a file exists, we just bail
-  checkFile(config.S3_BUCKET, 'rpms/' + rpmName)
+  util.checkFile(rpmPath + rpmName)
     .then(() => {
       console.log('Package already present: Skipping.');
       process.exit();
@@ -148,10 +92,10 @@ function work(task, cb) {
   });
 
   let buildCmd = process.cwd() + '/rpmbuild --define \'_tmppath ' + config.RPMROOT + '/tmp\' --define \'_topdir ' + config.RPMROOT + '\' --buildroot ' + config.RPMROOT + '/BUILDROOT -ba ' + specFile;
-  buildRpm(buildCmd, rpmName, srcrpmName).then(function (data) {
-    console.log(config.S3_BUCKET, 'rpms/'+ rpmName);
-    uploadFile(config.S3_BUCKET, 'rpms/'+ rpmName, data.rpm);
-    uploadFile(config.S3_BUCKET, 'src/' + srcrpmName, data.srpm);
+  buildRpm(buildCmd, rpmName, srpmName).then(function (data) {
+    console.log(rpmPath + rpmName);
+    util.uploadFile(rpmPath + rpmName, data.rpm);
+    util.uploadFile(srpmPath + srpmName, data.srpm);
   });
 
   cb();
@@ -162,8 +106,8 @@ exports.handler = function(event, context, callback) {
     if (err) {
       callback(err);
     } else {
-      deleteMessage(event.ReceiptHandle, callback);
-      //console.log(event.ReceiptHandle);
+      //deleteMessage(event.ReceiptHandle, callback);
+      console.log(event.ReceiptHandle);
     }
   });
 };
