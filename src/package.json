@@ -1,0 +1,31 @@
+{
+  "name": "jenkins-plugins-package",
+  "version": "0.0.1",
+  "description": "Create packages from Jenkins Plugins",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+ssh://git@github.com/adamcrews/jenkins-plugins-aws.git"
+  },
+  "keywords": [
+    "jenkins-plugins",
+    "jenkins"
+  ],
+  "author": "Adam Crews <adam.crews@gmail.com>",
+  "license": "Apache-2.0",
+  "bugs": {
+    "url": "https://github.com/adamcrews/jenkins-plugins-aws/issues"
+  },
+  "homepage": "https://github.com/adamcrews/jenkins-plugins-aws#readme",
+  "dependencies": {
+    "async": "^2.6.0",
+    "fs-extra": "^5.0.0",
+    "mustache": "^2.3.0"
+  },
+  "devDependencies": {
+    "aws-sdk": "^2.229.1"
+  }
+}
