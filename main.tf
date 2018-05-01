@@ -1,9 +1,24 @@
 # Create the resources to run all the things
 
+resource "null_resource" "node" {
+  triggers {
+    config     = "${base64sha256(file("src/config.js"))}"
+    dispatcher = "${base64sha256(file("src/dispatcher.js"))}"
+    lib        = "${base64sha256(file("src/lib.js"))}"
+    package    = "${base64sha256(file("src/package.js"))}"
+    plugins    = "${base64sha256(file("src/plugins.js"))}"
+  }
+
+  provisioner "local-exec" {
+    command = "./resources/npm.sh ${path.module}/src"
+  }
+}
+
 data "archive_file" "lambda" {
   type        = "zip"
   output_path = "${path.module}/.cache/plugins.zip"
   source_dir  = "${path.module}/src"
+  depends_on  = ["null_resource.node"]
 }
 
 # Be sure to set AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY in your

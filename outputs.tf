@@ -4,5 +4,5 @@ output "sqsQueue" {
 }
 
 output "bucketname" {
-  value = "${module.rpm_bucket.s3_bucket_id}"
+  value = "${module.package_bucket.s3_bucket_id}"
 }
