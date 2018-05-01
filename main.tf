@@ -1,163 +1,96 @@
 # Create the resources to run all the things
-variable "pkg_release" {
-  description = "The release/build number of the packages."
-  default = "1"
-}
-variable "region" {
-  description = "The AWS Region to create resources in."
-  default = "us-west-2"
-}
-
-variable "domain" {
-  description = "The dns domain name to use."
-  default = "pdxlab.tech"
-}
 
 data "archive_file" "lambda" {
-  type = "zip"
+  type        = "zip"
   output_path = "${path.module}/.cache/plugins.zip"
-  source_dir = "${path.module}/src"
+  source_dir  = "${path.module}/src"
 }
 
 # Be sure to set AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY in your
 # environment.
 provider "aws" {
-   region = "${var.region}"
+  region = "${var.region}"
 }
 
 # SQS queue is used to post messages about what work to do
 # visibility_timeout is set to 1 second longer than the max lambda run time
 resource "aws_sqs_queue" "jenkins-plugins" {
-  name_prefix = "jenkins-plugins"
+  name_prefix                = "jenkins-plugins"
   visibility_timeout_seconds = 301
+
   tags {
     Terraform   = "true"
-    Environment = "prod"
-    Owner       = "adamc"
+    Environment = "${var.app_environment}"
+    Owner       = "${var.userid}"
     Project     = "jenkins-plugins"
   }
 }
 
-resource "aws_lambda_function" "jenkins-plugins-get-plugins" {
-  filename         = "${data.archive_file.lambda.output_path}"
-  function_name    = "jenkins-plugins-get-plugins"
-  role             = "${aws_iam_role.jenkins-plugins-role.arn}"
-  handler          = "plugins.handler"
-  source_code_hash = "${data.archive_file.lambda.output_sha}"
-  runtime          = "nodejs8.10"
-  timeout          = "300"
+# Create the lambdas that do all the work.
+module "get-plugins" {
+  source = "./modules/lambda"
 
-  environment {
-    variables = {
-      sqsQueue = "${aws_sqs_queue.jenkins-plugins.id}"
-      release  = "${var.pkg_release}"
-      s3Bucket = "${module.rpm_bucket.s3_bucket_id}"
-      snsTopic = "${aws_sns_topic.topic.arn}"
-    }
-  }
-  tags {
-    Terraform   = "true"
-    Environment = "prod"
-    Owner       = "adamc"
-    Project     = "jenkins-plugins"
-  }
+  filename             = "${data.archive_file.lambda.output_path}"
+  filename_sha         = "${data.archive_file.lambda.output_sha}"
+  handler              = "plugins.handler"
+  role_arn             = "${aws_iam_role.jenkins-plugins-role.arn}"
+  role_id              = "${aws_iam_role.jenkins-plugins-role.id}"
+  cloudwatch_log_group = "${aws_cloudwatch_log_group.jenkins-plugins.arn}"
+  userid               = "${var.userid}"
+  sqs_queue            = "${aws_sqs_queue.jenkins-plugins.id}"
+  pkg_release          = "${var.pkg_release}"
+  s3_bucket            = "${module.package_bucket.s3_bucket_id}"
+  sns_topic            = "${aws_sns_topic.topic.arn}"
 }
 
-resource "aws_lambda_function" "jenkins-plugins-create-packages" {
-  filename         = "${data.archive_file.lambda.output_path}"
-  function_name    = "jenkins-plugins-create-packages"
-  role             = "${aws_iam_role.jenkins-plugins-role.arn}"
-  handler          = "package.handler"
-  source_code_hash = "${data.archive_file.lambda.output_sha}"
-  runtime          = "nodejs8.10"
-  timeout          = "300"
+module "create-packages" {
+  source = "./modules/lambda"
 
-  environment {
-    variables = {
-      sqsQueue = "${aws_sqs_queue.jenkins-plugins.id}"
-      release  = "${var.pkg_release}"
-      s3Bucket = "${module.rpm_bucket.s3_bucket_id}"
-    }
-  }
-  tags {
-    Terraform   = "true"
-    Environment = "prod"
-    Owner       = "adamc"
-    Project     = "jenkins-plugins"
-  }
+  filename             = "${data.archive_file.lambda.output_path}"
+  filename_sha         = "${data.archive_file.lambda.output_sha}"
+  handler              = "package.handler"
+  role_arn             = "${aws_iam_role.jenkins-plugins-role.arn}"
+  role_id              = "${aws_iam_role.jenkins-plugins-role.id}"
+  cloudwatch_log_group = "${aws_cloudwatch_log_group.jenkins-plugins.arn}"
+  userid               = "${var.userid}"
+  sqs_queue            = "${aws_sqs_queue.jenkins-plugins.id}"
+  pkg_release          = "${var.pkg_release}"
+  s3_bucket            = "${module.package_bucket.s3_bucket_id}"
 }
 
-resource "aws_lambda_function" "jenkins-plugins-dispatcher" {
-  filename         = "${data.archive_file.lambda.output_path}"
-  function_name    = "jenkins-plugins-dispatcher"
-  role             = "${aws_iam_role.jenkins-plugins-role.arn}"
-  handler          = "dispatcher.handler"
-  source_code_hash = "${data.archive_file.lambda.output_sha}"
-  runtime          = "nodejs8.10"
-  timeout          = "300"
+module "dispatcher" {
+  source = "./modules/lambda"
 
-  environment {
-    variables = {
-      sqsQueue = "${aws_sqs_queue.jenkins-plugins.id}"
-      release  = "${var.pkg_release}"
-      s3Bucket = "${module.rpm_bucket.s3_bucket_id}"
-    }
-  }
-  tags {
-    Terraform   = "true"
-    Environment = "prod"
-    Owner       = "adamc"
-    Project     = "jenkins-plugins"
-  }
+  filename             = "${data.archive_file.lambda.output_path}"
+  filename_sha         = "${data.archive_file.lambda.output_sha}"
+  handler              = "dispatcher.handler"
+  role_arn             = "${aws_iam_role.jenkins-plugins-role.arn}"
+  role_id              = "${aws_iam_role.jenkins-plugins-role.id}"
+  cloudwatch_log_group = "${aws_cloudwatch_log_group.jenkins-plugins.arn}"
+  userid               = "${var.userid}"
+  sqs_queue            = "${aws_sqs_queue.jenkins-plugins.id}"
+  pkg_release          = "${var.pkg_release}"
+  s3_bucket            = "${module.package_bucket.s3_bucket_id}"
 }
 
-# Trigger the lambda to run on an interval.
-# We need a cloudwatch event rule, an event target, and
-# lambda permissions
-resource "aws_cloudwatch_event_rule" "jenkins-plugins-get-plugins" {
-  name = "jenkins-plugins-get-plugins"
-  depends_on = [
-    "aws_lambda_function.jenkins-plugins-get-plugins"
-  ]
-  schedule_expression = "rate(180 minutes)"
+# Trigger the dispatcher and plugin creator to run on a regular interval.
+module "get-plugins-cron" {
+  source = "./modules/cloudwatch_cron"
+
+  function_name = "${module.get-plugins.function_name}"
+  lambda        = "${module.get-plugins.arn}"
 }
 
-resource "aws_cloudwatch_event_target" "jenkins-plugins-get-plugins" {
-  target_id = "jenkins-plugins-get-plugins"
-  rule = "${aws_cloudwatch_event_rule.jenkins-plugins-get-plugins.name}"
-  arn = "${aws_lambda_function.jenkins-plugins-get-plugins.arn}"
+module "dispatcher-cron" {
+  source = "./modules/cloudwatch_cron"
+
+  function_name = "${module.dispatcher.function_name}"
+  lambda        = "${module.dispatcher.arn}"
+  schedule      = "rate(10 minutes)"
 }
 
-resource "aws_lambda_permission" "jenkins-plugins-get-plugins" {
-  statement_id = "AllowExecutionFromCloudWatch"
-  action = "lambda:InvokeFunction"
-  function_name = "${aws_lambda_function.jenkins-plugins-get-plugins.function_name}"
-  principal = "events.amazonaws.com"
-  source_arn = "${aws_cloudwatch_event_rule.jenkins-plugins-get-plugins.arn}"
-}
-
-resource "aws_cloudwatch_event_rule" "jenkins-plugins-dispatcher" {
-  name = "jenkins-plugins-dispatcher"
-  depends_on = [
-    "aws_lambda_function.jenkins-plugins-dispatcher"
-  ]
-  schedule_expression = "rate(10 minutes)"
-}
-
-resource "aws_cloudwatch_event_target" "jenkins-plugins-dispatcher" {
-  target_id = "jenkins-plugins-dispatcher"
-  rule = "${aws_cloudwatch_event_rule.jenkins-plugins-dispatcher.name}"
-  arn = "${aws_lambda_function.jenkins-plugins-dispatcher.arn}"
-}
-
-resource "aws_lambda_permission" "jenkins-plugins-dispatcher" {
-  statement_id = "AllowExecutionFromCloudWatch"
-  action = "lambda:InvokeFunction"
-  function_name = "${aws_lambda_function.jenkins-plugins-dispatcher.function_name}"
-  principal = "events.amazonaws.com"
-  source_arn = "${aws_cloudwatch_event_rule.jenkins-plugins-dispatcher.arn}"
-}
-
+# Create a SNS topic so we can send notifications to the dispatcher that it
+# should wake up and uhhh... dispatch.
 resource "aws_sns_topic" "topic" {
   name = "jenkins-plugins"
 }
@@ -165,30 +98,44 @@ resource "aws_sns_topic" "topic" {
 resource "aws_sns_topic_subscription" "jenkins-plugins-dispatcher" {
   topic_arn = "${aws_sns_topic.topic.arn}"
   protocol  = "lambda"
-  endpoint  = "${aws_lambda_function.jenkins-plugins-dispatcher.arn}"
+  endpoint  = "${module.dispatcher.arn}"
 }
 
 resource "aws_lambda_permission" "with_sns" {
-    statement_id = "AllowExecutionFromSNS"
-    action = "lambda:InvokeFunction"
-    function_name = "${aws_lambda_function.jenkins-plugins-dispatcher.function_name}"
-    principal = "sns.amazonaws.com"
-    source_arn = "${aws_sns_topic.topic.arn}"
+  statement_id  = "AllowExecutionFromSNS"
+  action        = "lambda:InvokeFunction"
+  function_name = "${module.dispatcher.function_name}"
+  principal     = "sns.amazonaws.com"
+  source_arn    = "${aws_sns_topic.topic.arn}"
 }
 
-module "rpm_bucket" {
-  source         = "git@github.com:adamcrews/terraform-aws-s3-bucket.git?ref=feature/flexible_policy"
-  s3_fqdn        = "jenkins-plugins-rpm.${var.domain}"
-  role_arn       = "${aws_iam_role.jenkins-plugins-role.arn}"
-# files          = "${var.files}"
-# base64_files   = "${var.base64_files}"
+# We need somewhere to dump all the built stuff to
+module "package_bucket" {
+  source   = "git@github.com:adamcrews/terraform-aws-s3-bucket.git?ref=feature/flexible_policy"
+  s3_fqdn  = "jenkins-plugins-rpm.${var.domain}"
+  role_arn = "${aws_iam_role.jenkins-plugins-role.arn}"
 
-  allow_public   = "true"
+  # files          = "${var.files}"
+  # base64_files   = "${var.base64_files}"
 
+  allow_public = "true"
   tags = {
-    Terraform   = "true"
-    Environment = "prod"
+    Terraforn   = "true"
+    Environment = "${var.app_environment}"
     Project     = "jenkins-plugins"
-    Owner       = "adamc"
+    Owner       = "${var.userid}"
+  }
+}
+
+# Collect lambda logs
+resource "aws_cloudwatch_log_group" "jenkins-plugins" {
+  name_prefix       = "jenkins-plugins"
+  retention_in_days = "5"
+
+  tags {
+    Terraforn   = "true"
+    Environment = "${var.app_environment}"
+    Project     = "jenkins-plugins"
+    Owner       = "${var.userid}"
   }
 }
