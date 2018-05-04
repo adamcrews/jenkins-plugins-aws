@@ -48,14 +48,16 @@ function buildRpm(cmd, rpmName, srpmName) {
   return new Promise(function(resolve, reject) {
     exec(cmd, (err, stdout, stderr) => {
       if (err) {
-        console.log(`stdout: ${stdout}`);
-        console.log(`stderr: ${stderr}`);
+        var specFile = cmd.split(/[, ]+/).pop();
+        console.error("Build stdout: " + stdout);
+        console.error("Build stderr: " + stderr);
+        console.error("Build specFile: \n" + fs.readFileSync(specFile, 'utf8'));
         reject(err);
       }
 
       let data = {
-        rpm: fs.readFileSync(config.RPMROOT + '/RPMS/noarch/' + rpmName, 'utf8'),
-        srpm: fs.readFileSync(config.RPMROOT + '/SRPMS/' + srpmName, 'utf8')
+        rpm: fs.readFileSync(config.RPMROOT + '/RPMS/noarch/' + rpmName, 'binary'),
+        srpm: fs.readFileSync(config.RPMROOT + '/SRPMS/' + srpmName, 'binary')
       };
 
       resolve(data);
@@ -75,7 +77,7 @@ function work(task, cb) {
   // if a file exists, we just bail
   util.checkFile(rpmPath + rpmName)
     .then(() => {
-      console.log('Package already present: Skipping.');
+      console.log("Package (" + rpmName + ") already present. Skipping.");
       process.exit();
     })
     .catch(() => {
@@ -99,7 +101,7 @@ function work(task, cb) {
 
   let buildCmd = process.cwd() + '/rpmbuild --define \'_tmppath ' + config.RPMROOT + '/tmp\' --define \'_topdir ' + config.RPMROOT + '\' --buildroot ' + config.RPMROOT + '/BUILDROOT -ba ' + specFile;
   buildRpm(buildCmd, rpmName, srpmName).then(function(data) {
-    console.log(rpmPath + rpmName);
+    console.log("Building: " + rpmPath + rpmName);
     util.uploadFile(rpmPath + rpmName, data.rpm);
     util.uploadFile(srpmPath + srpmName, data.srpm);
   });

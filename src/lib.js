@@ -2,38 +2,36 @@
 
 const config = require('./config');
 
-const AWS    = require('aws-sdk');
-const fs     = require('fs-extra');
-const path   = require('path');
-
-var s3       = new AWS.S3();
+const AWS = require('aws-sdk');
+const fs = require('fs-extra');
+const path = require('path');
 
 module.exports.uploadFile = function uploadFile(fileName, data) {
   return new Promise(function(resolve, reject) {
-    let params = {
+    var s3 = new AWS.S3();
+
+    s3.putObject({
       Bucket: config.S3_BUCKET,
       Key: fileName,
-      Body: data
-    };
-
-    s3.upload(params, function(err, data) {
-      if (err) {
-        console.error(err);
-        reject(err);
-      }
-      resolve("Complete");
+      Body: data,
+      ContentType: 'application/octet-stream',
+      ACL: 'public-read'
+    }, function(resp) {
+      console.log('Successfully uploaded package: ' + fileName);
+      resolve('Successfully uploaded package: ' + fileName);
     });
   });
 };
 
 module.exports.checkFile = function findFile(fileName) {
   return new Promise(function(resolve, reject) {
+    var s3 = new AWS.S3();
     let params = {
       Bucket: config.S3_BUCKET,
       Key: fileName
     };
 
-    s3.headObject(params, function (err, metadata) {
+    s3.headObject(params, function(err, metadata) {
       if (err && err.code === 'NotFound') {
         reject("NotFound");
       } else {
@@ -50,11 +48,13 @@ module.exports.basename = function basename(str, sep) {
 };
 
 module.exports.strip_extension = function strip_extension(str) {
-  return str.substr(0,str.lastIndexOf('.'));
+  return str.substr(0, str.lastIndexOf('.'));
 };
 
-module.exports.mkDirByPathSync = function mkDirByPathSync(targetDir, {isRelativeToScript = false} = {}) {
-  const sep     = path.sep;
+module.exports.mkDirByPathSync = function mkDirByPathSync(targetDir, {
+  isRelativeToScript = false
+} = {}) {
+  const sep = path.sep;
   const initDir = path.isAbsolute(targetDir) ? sep : '';
   const baseDir = isRelativeToScript ? __dirname : '.';
 

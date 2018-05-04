@@ -34,10 +34,6 @@ variable "role_id" {
   description = "The IAM role id to assume for this lambda."
 }
 
-variable "cloudwatch_log_group" {
-  description = "The ARN of the cloudwatch group to send messages to."
-}
-
 variable "app_environment" {
   description = "The application environment/application tier (dev/test/prod)."
   default     = "prod"

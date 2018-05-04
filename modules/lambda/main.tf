@@ -30,6 +30,19 @@ resource "aws_lambda_function" "lambda" {
   }
 }
 
+# Collect lambda logs
+resource "aws_cloudwatch_log_group" "jenkins-plugins" {
+  name              = "/aws/lambda/${local.function_name}"
+  retention_in_days = "1"
+
+  tags {
+    Terraforn   = "true"
+    Environment = "${var.app_environment}"
+    Project     = "jenkins-plugins"
+    Owner       = "${var.userid}"
+  }
+}
+
 resource "aws_iam_role_policy" "lambda-policy" {
   name = "${local.function_name}-${var.app_environment}"
   role = "${var.role_id}"
@@ -40,16 +53,12 @@ resource "aws_iam_role_policy" "lambda-policy" {
   "Statement": [
     {
       "Effect": "Allow",
-      "Action": "logs:CreateLogGroup",
-      "Resource": "arn:aws:logs:::*"
-    },
-    {
-      "Effect": "Allow",
       "Action": [
+        "logs:CreateLogGroup",
         "logs:CreateLogStream",
         "logs:PutLogEvents"
       ],
-      "Resource": "${var.cloudwatch_log_group}"
+      "Resource": "arn:aws:logs:*:*:*"
     },
     {
       "Effect": "Allow",

@@ -54,15 +54,14 @@ exports.handler = (event, context) => {
 
   var params = {
     TargetArn: config.SNS_TOPIC,
-    Message: 'Do the things!!!',
-    Subject: 'Trigger Lambda'
+    Message: 'Trigger Dispatcher Lambda',
+    Subject: 'Trigger Dispatcher Lambda'
   };
 
   sns.publish(params, function(err, data) {
     if (err) {
-      console.log('Error sending message', err);
-      //} else {
-      //  console.log('Sent message:', data.MessageId);
+      console.error('Error sending message', err);
     }
+    console.log('Triggered SNS to: ' + config.SNS_TOPIC);
   });
 };

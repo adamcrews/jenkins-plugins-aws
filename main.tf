@@ -45,47 +45,50 @@ resource "aws_sqs_queue" "jenkins-plugins" {
 module "get-plugins" {
   source = "./modules/lambda"
 
-  filename             = "${data.archive_file.lambda.output_path}"
-  filename_sha         = "${data.archive_file.lambda.output_sha}"
-  handler              = "plugins.handler"
-  role_arn             = "${aws_iam_role.jenkins-plugins-role.arn}"
-  role_id              = "${aws_iam_role.jenkins-plugins-role.id}"
-  cloudwatch_log_group = "${aws_cloudwatch_log_group.jenkins-plugins.arn}"
-  userid               = "${var.userid}"
-  sqs_queue            = "${aws_sqs_queue.jenkins-plugins.id}"
-  pkg_release          = "${var.pkg_release}"
-  s3_bucket            = "${module.package_bucket.s3_bucket_id}"
-  sns_topic            = "${aws_sns_topic.topic.arn}"
+  filename     = "${data.archive_file.lambda.output_path}"
+  filename_sha = "${data.archive_file.lambda.output_sha}"
+  handler      = "plugins.handler"
+  role_arn     = "${aws_iam_role.jenkins-plugins-role.arn}"
+  role_id      = "${aws_iam_role.jenkins-plugins-role.id}"
+
+  #  cloudwatch_log_group = "${aws_cloudwatch_log_group.jenkins-plugins.arn}"
+  userid      = "${var.userid}"
+  sqs_queue   = "${aws_sqs_queue.jenkins-plugins.id}"
+  pkg_release = "${var.pkg_release}"
+  s3_bucket   = "${module.package_bucket.s3_bucket_id}"
+  sns_topic   = "${aws_sns_topic.topic.arn}"
 }
 
 module "create-packages" {
   source = "./modules/lambda"
 
-  filename             = "${data.archive_file.lambda.output_path}"
-  filename_sha         = "${data.archive_file.lambda.output_sha}"
-  handler              = "package.handler"
-  role_arn             = "${aws_iam_role.jenkins-plugins-role.arn}"
-  role_id              = "${aws_iam_role.jenkins-plugins-role.id}"
-  cloudwatch_log_group = "${aws_cloudwatch_log_group.jenkins-plugins.arn}"
-  userid               = "${var.userid}"
-  sqs_queue            = "${aws_sqs_queue.jenkins-plugins.id}"
-  pkg_release          = "${var.pkg_release}"
-  s3_bucket            = "${module.package_bucket.s3_bucket_id}"
+  filename     = "${data.archive_file.lambda.output_path}"
+  filename_sha = "${data.archive_file.lambda.output_sha}"
+  handler      = "package.handler"
+  role_arn     = "${aws_iam_role.jenkins-plugins-role.arn}"
+  role_id      = "${aws_iam_role.jenkins-plugins-role.id}"
+
+  #  cloudwatch_log_group = "${aws_cloudwatch_log_group.jenkins-plugins.arn}"
+  userid      = "${var.userid}"
+  sqs_queue   = "${aws_sqs_queue.jenkins-plugins.id}"
+  pkg_release = "${var.pkg_release}"
+  s3_bucket   = "${module.package_bucket.s3_bucket_id}"
 }
 
 module "dispatcher" {
   source = "./modules/lambda"
 
-  filename             = "${data.archive_file.lambda.output_path}"
-  filename_sha         = "${data.archive_file.lambda.output_sha}"
-  handler              = "dispatcher.handler"
-  role_arn             = "${aws_iam_role.jenkins-plugins-role.arn}"
-  role_id              = "${aws_iam_role.jenkins-plugins-role.id}"
-  cloudwatch_log_group = "${aws_cloudwatch_log_group.jenkins-plugins.arn}"
-  userid               = "${var.userid}"
-  sqs_queue            = "${aws_sqs_queue.jenkins-plugins.id}"
-  pkg_release          = "${var.pkg_release}"
-  s3_bucket            = "${module.package_bucket.s3_bucket_id}"
+  filename     = "${data.archive_file.lambda.output_path}"
+  filename_sha = "${data.archive_file.lambda.output_sha}"
+  handler      = "dispatcher.handler"
+  role_arn     = "${aws_iam_role.jenkins-plugins-role.arn}"
+  role_id      = "${aws_iam_role.jenkins-plugins-role.id}"
+
+  #  cloudwatch_log_group = "${aws_cloudwatch_log_group.jenkins-plugins.arn}"
+  userid      = "${var.userid}"
+  sqs_queue   = "${aws_sqs_queue.jenkins-plugins.id}"
+  pkg_release = "${var.pkg_release}"
+  s3_bucket   = "${module.package_bucket.s3_bucket_id}"
 }
 
 # Trigger the dispatcher and plugin creator to run on a regular interval.
@@ -143,14 +146,15 @@ module "package_bucket" {
 }
 
 # Collect lambda logs
-resource "aws_cloudwatch_log_group" "jenkins-plugins" {
-  name_prefix       = "jenkins-plugins"
-  retention_in_days = "5"
+#resource "aws_cloudwatch_log_group" "jenkins-plugins" {
+#  name_prefix       = "jenkins-plugins"
+#  retention_in_days = "5"
+#
+#  tags {
+#    Terraforn   = "true"
+#    Environment = "${var.app_environment}"
+#    Project     = "jenkins-plugins"
+#    Owner       = "${var.userid}"
+#  }
+#}
 
-  tags {
-    Terraforn   = "true"
-    Environment = "${var.app_environment}"
-    Project     = "jenkins-plugins"
-    Owner       = "${var.userid}"
-  }
-}
